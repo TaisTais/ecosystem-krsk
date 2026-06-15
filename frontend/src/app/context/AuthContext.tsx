@@ -24,22 +24,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('access_token'));
   const [isLoading, setIsLoading] = useState(true);
 
-  // Загружаем данные пользователя при старте
   useEffect(() => {
     const loadUser = async () => {
       const savedToken = localStorage.getItem('access_token');
-      
+
       if (savedToken) {
         try {
-          const response = await api.get('/users/me');
+          const response = await api.get('/me/');
           setUser(response.data);
+          setToken(savedToken);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (error) {
-          console.error("Токен недействителен");
+          console.error('Токен недействителен');
           localStorage.removeItem('access_token');
           setToken(null);
+          setUser(null);
         }
       }
+
       setIsLoading(false);
     };
 
@@ -59,14 +61,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      token,
-      isLoading,
-      login,
-      logout,
-      isAuthenticated: !!token && !!user
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isLoading,
+        login,
+        logout,
+        isAuthenticated: !!token && !!user,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

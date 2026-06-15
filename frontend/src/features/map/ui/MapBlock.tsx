@@ -1,9 +1,33 @@
-// src/features/map/ui/MapBlock.tsx
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import {
+  Search,
+  Filter,
+  MessageCircle,
+  Clock,
+  MapPin,
+  ThumbsUp,
+  XCircle,
+  CircleEllipsis,
+  Plus,
+  X,
+  ImagePlus,
+} from 'lucide-react';
+import axios from 'axios';
+
 import { useEcoPoints } from '../hooks/useEcoPoints';
-import { Search, Filter, MessageCircle, Clock, MapPin, ThumbsUp, XCircle, CircleEllipsis } from 'lucide-react';
 import { ecopointApi } from '../../../entities/ecopoint/api';
 import type { EcoPoint, EcoPointDetail, EcoPointStatus } from '../../../entities/ecopoint/types';
+import { CreateEcoPointModal } from './CreateEcoPointModel';
+import UpdateEcoPointModal from './UpdateEcoPoinModal';
+
+const statusOptions: EcoPointStatus[] = ['working', 'closed', 'temporarily_closed'];
+
+type DetailTab = 'statuses' | 'reviews' | 'add-review';
+
+type ApiErrorResponse = {
+  detail?: string | Array<{ msg?: string } | string>;
+  message?: string;
+};
 
 const MapBlock = () => {
   const { points, loading, error } = useEcoPoints();
@@ -11,20 +35,40 @@ const MapBlock = () => {
   const [expandedPointId, setExpandedPointId] = useState<number | null>(null);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
   const [fullPointCache, setFullPointCache] = useState<Record<number, EcoPoint>>({});
-  const [showModal, setShowModal] = useState<'reviews' | 'statuses' | null>(null);
-  const [selectedPoint, setSelectedPoint] = useState<EcoPointDetail | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [selectedPointForUpdate, setSelectedPointForUpdate] = useState<EcoPoint | null>(null);
 
-  const filteredPoints = points.filter(point =>
-    point.name.toLowerCase().includes(search.toLowerCase()) ||
-    point.address.toLowerCase().includes(search.toLowerCase())
-  );
+  const [detailPointId, setDetailPointId] = useState<number | null>(null);
+  const [detailPoint, setDetailPoint] = useState<EcoPointDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState<DetailTab>('statuses');
+  const [selectedStatus, setSelectedStatus] = useState<EcoPointStatus>('working');
+  const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewPhotoFile, setReviewPhotoFile] = useState<File | null>(null);
+  const [reviewPhotoPreview, setReviewPhotoPreview] = useState<string | null>(null);
+
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const filteredPoints = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return points;
+    return points.filter(
+      (point) =>
+        point.name.toLowerCase().includes(q) || point.address.toLowerCase().includes(q)
+    );
+  }, [points, search]);
 
   const loadFullPoint = async (id: number): Promise<EcoPoint | null> => {
     if (fullPointCache[id]) return fullPointCache[id];
-    
+
     try {
       const fullPoint = await ecopointApi.getById(id);
-      setFullPointCache(prev => ({ ...prev, [id]: fullPoint }));
+      setFullPointCache((prev) => ({ ...prev, [id]: fullPoint }));
       return fullPoint;
     } catch (err) {
       console.error('Ошибка загрузки полной точки:', err);
@@ -35,25 +79,12 @@ const MapBlock = () => {
   const toggleExpand = async (id: number) => {
     if (expandedPointId === id) {
       setExpandedPointId(null);
-    } else {
-      setExpandedPointId(id);
-      const full = await loadFullPoint(id);
-      if (full) {
-        setSelectedPoint(null); // сбрасываем, чтобы не было конфликта типов
-      }
+      return;
     }
-  };
 
-  const openModal = async (type: 'reviews' | 'statuses', id: number) => {
-    try {
-      const detail = await ecopointApi.getDetail(id);   // загружаем полную версию
-      setSelectedPoint(detail);
-      setShowModal(type);
-    } catch (err) {
-      console.error('Ошибка загрузки деталей:', err);
-    }
+    setExpandedPointId(id);
+    await loadFullPoint(id);
   };
-  const currentExpandedPoint = expandedPointId ? fullPointCache[expandedPointId] : null;
 
   const getTypeColor = (type: string) => {
     const colors: Record<string, string> = {
@@ -74,21 +105,152 @@ const MapBlock = () => {
   const getStatusIcon = (status: EcoPointStatus) => {
     switch (status) {
       case 'working':
-        return <ThumbsUp size={18} className="text-emerald-600" />;
+        return <ThumbsUp size={22} className="text-emerald-600" />;
       case 'closed':
-        return <XCircle size={18} className="text-red-600" />;
+        return <XCircle size={22} className="text-red-600" />;
       case 'temporarily_closed':
-        return <CircleEllipsis size={18} className="text-amber-600" />;
+        return <CircleEllipsis size={22} className="text-amber-600" />;
       default:
         return null;
     }
   };
 
+  const getUpdateSource = (point: EcoPoint | EcoPointDetail) => {
+    const localDate = point.last_local_update_at ? new Date(point.last_local_update_at) : null;
+    const recycleDate = point.recyclemap_updated_at ? new Date(point.recyclemap_updated_at) : null;
+
+    if (!localDate && !recycleDate) return 'Неизвестно';
+    if (!localDate) return 'RecycleMap';
+    if (!recycleDate) return 'Экосистема Красноярска';
+
+    return localDate > recycleDate ? 'Экосистема Красноярска' : 'RecycleMap';
+  };
+
+  const openDetail = async (id: number, tab: DetailTab = 'statuses') => {
+    setDetailPointId(id);
+    setDetailLoading(true);
+    setDetailTab(tab);
+    setStatusError(null);
+    setReviewError(null);
+    setReviewComment('');
+    setReviewPhotoFile(null);
+    setReviewPhotoPreview(null);
+
+    try {
+      const detail = await ecopointApi.getDetail(id);
+      setDetailPoint(detail);
+    } catch (err) {
+      console.error('Ошибка загрузки деталей:', err);
+      setDetailPoint(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const refreshDetail = async () => {
+    if (!detailPointId) return;
+    const detail = await ecopointApi.getDetail(detailPointId);
+    setDetailPoint(detail);
+  };
+
+  const handleAddStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!detailPointId) return;
+
+    setStatusSubmitting(true);
+    setStatusError(null);
+
+    try {
+      await ecopointApi.addStatus(detailPointId, { status: selectedStatus });
+      await refreshDetail();
+      setDetailTab('statuses');
+    } catch (err: unknown) {
+      let message = 'Не удалось сохранить статус. Попробуйте позже.';
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data as ApiErrorResponse;
+        if (typeof data?.detail === 'string') message = data.detail;
+        else if (Array.isArray(data?.detail)) {
+          message = data.detail
+            .map((item) => (typeof item === 'string' ? item : item.msg || 'Ошибка'))
+            .join('. ');
+        } else if (typeof data?.message === 'string') {
+          message = data.message;
+        }
+      }
+      setStatusError(message);
+    } finally {
+      setStatusSubmitting(false);
+    }
+  };
+
+  const handlePhotoChange = (file: File | null) => {
+    setReviewPhotoFile(file);
+    if (reviewPhotoPreview) URL.revokeObjectURL(reviewPhotoPreview);
+    setReviewPhotoPreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  const handleAddReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!detailPointId) return;
+
+    if (!reviewComment.trim()) {
+      setReviewError('Введите текст отзыва');
+      return;
+    }
+
+    setReviewSubmitting(true);
+    setReviewError(null);
+
+    try {
+      let photoUrl: string | undefined;
+
+      if (reviewPhotoFile) {
+        const uploaded = await ecopointApi.uploadPhoto(reviewPhotoFile);
+        photoUrl = uploaded.url;
+      }
+
+      await ecopointApi.addReview(detailPointId, {
+        comment: reviewComment.trim(),
+        photo_url: photoUrl,
+      });
+
+      setReviewComment('');
+      handlePhotoChange(null);
+      await refreshDetail();
+      setDetailTab('reviews');
+    } catch (err: unknown) {
+      let message = 'Не удалось сохранить отзыв. Попробуйте позже.';
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data as ApiErrorResponse;
+        if (typeof data?.detail === 'string') message = data.detail;
+        else if (Array.isArray(data?.detail)) {
+          message = data.detail
+            .map((item) => (typeof item === 'string' ? item : item.msg || 'Ошибка'))
+            .join('. ');
+        } else if (typeof data?.message === 'string') {
+          message = data.message;
+        }
+      }
+      setReviewError(message);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailPointId(null);
+    setDetailPoint(null);
+    setDetailTab('statuses');
+    setStatusError(null);
+    setReviewError(null);
+    setReviewComment('');
+    handlePhotoChange(null);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Поиск */}
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <div className="px-4 py-3 sticky top-0 z-50 bg-white border-b">
-        <div className="relative flex gap-3">
+        <div className="flex gap-3 items-center">
           <div className="flex-1 relative">
             <input
               type="text"
@@ -99,63 +261,72 @@ const MapBlock = () => {
             />
             <Search className="absolute left-4 top-3.5 text-gray-400" size={22} />
           </div>
+
           <button className="p-3 text-emerald-600 hover:bg-emerald-50 rounded-2xl">
             <Filter size={24} />
+          </button>
+
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="p-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-colors"
+          >
+            <Plus size={24} />
           </button>
         </div>
       </div>
 
-      {/* Карта */}
-      <div 
-        className={`bg-gray-200 border-b transition-all duration-300 shrink-0 relative ${isMapExpanded ? 'h-screen' : 'h-[38vh]'}`}
-        onClick={() => setIsMapExpanded(!isMapExpanded)}
+      <div
+        className={`bg-gray-200 border-b transition-all duration-300 shrink-0 relative ${
+          isMapExpanded ? 'h-[60vh]' : 'h-[28vh]'
+        }`}
+        onClick={() => setIsMapExpanded((prev) => !prev)}
       >
         <div className="h-full flex items-center justify-center bg-linear-to-br from-emerald-50 to-teal-100">
-          <div className="text-center">
-            <div className="text-7xl mb-4">🗺️</div>
-            <p className="font-semibold text-lg">Интерактивная карта</p>
+          <div className="text-center px-4">
+            <div className="text-6xl mb-3">🗺️</div>
+            <p className="font-semibold text-base">Интерактивная карта</p>
             <p className="text-sm text-gray-500">Нажмите, чтобы развернуть / свернуть</p>
           </div>
         </div>
       </div>
 
-      {/* Список точек */}
-      <div className="p-4 space-y-4 pb-24">
-        {loading && <div className="text-center py-12">Загрузка точек...</div>}
+      <div className="px-4 py-4 space-y-4 pb-24">
+        {loading && <div className="text-center py-12 text-gray-500">Загрузка точек...</div>}
         {error && <div className="bg-red-50 p-4 rounded-2xl text-red-600">{error}</div>}
 
         {filteredPoints.map((point) => {
           const isExpanded = expandedPointId === point.id;
-          const fullPoint = currentExpandedPoint?.id === point.id ? currentExpandedPoint : null;
+          const fullPoint = fullPointCache[point.id] || null;
 
           return (
-            <div 
+            <div
               key={point.id}
               className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
             >
-              {/* Основная карточка */}
-              <div 
+              <div
                 onClick={() => toggleExpand(point.id)}
-                className="p-5 cursor-pointer active:bg-gray-50"
+                className="p-4 cursor-pointer active:bg-gray-50"
               >
-                <h3 className="font-semibold text-xl leading-tight">{point.name}</h3>
-                
+                <h3 className="font-semibold text-lg leading-tight">{point.name}</h3>
+
                 <p className="text-gray-600 text-sm mt-2 flex items-center gap-1.5">
-                  <MapPin size={18} className="text-gray-400" /> {point.address}
+                  <MapPin size={16} className="text-gray-400 shrink-0" />
+                  <span>{point.address}</span>
                 </p>
 
                 {point.working_hours && (
                   <p className="text-sm text-gray-500 mt-3 flex items-center gap-2">
-                    <Clock size={18} className="text-gray-400" /> {point.working_hours}
+                    <Clock size={16} className="text-gray-400 shrink-0" />
+                    <span>{point.working_hours}</span>
                   </p>
                 )}
 
                 {point.types?.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-4">
                     {point.types.map((type, index) => (
-                      <span 
-                        key={index}
-                        className={`text-xs px-4 py-1.5 rounded-2xl font-medium ${getTypeColor(type)}`}
+                      <span
+                        key={`${type}-${index}`}
+                        className={`text-xs px-3 py-1.5 rounded-2xl font-medium ${getTypeColor(type)}`}
                       >
                         {type}
                       </span>
@@ -164,59 +335,107 @@ const MapBlock = () => {
                 )}
               </div>
 
-              {/* Раскрытая карточка */}
               {isExpanded && fullPoint && (
-                <div className="p-5 space-y-5 border-t">
+                <div className="p-4 space-y-4 border-t">
                   {fullPoint.description && (
-                    <p className="text-gray-700 leading-relaxed">{fullPoint.description}</p>
+                    <p className="text-gray-700 leading-relaxed text-sm">{fullPoint.description}</p>
                   )}
 
-                  {/* Контакты */}
                   {fullPoint.contacts && Object.keys(fullPoint.contacts).length > 0 && (
-                    <div className="space-y-2 pt-2">
-                      {Object.entries(fullPoint.contacts).map(([key, value]) => (
-                        <a
-                          key={key}
-                          href={key === 'phone' ? `tel:${value}` : key === 'telegram' ? `https://t.me/${value.replace('@','')}` : undefined}
-                          className="block text-emerald-600 hover:text-emerald-700 py-1"
-                        >
-                          {value}
-                        </a>
-                      ))}
-                    </div>
+                      <div className="flex flex-col gap-2">
+                        {Object.entries(fullPoint.contacts).map(([key, value]) => {
+                          if (!value) return null;
+
+                          const href =
+                            key === 'phone'
+                              ? `tel:${value}`
+                              : key === 'website'
+                                ? String(value)
+                                : key === 'vk'
+                                  ? String(value).startsWith('http')
+                                    ? String(value)
+                                    : `https://vk.com/${String(value).replace('@', '')}`
+                                  : key === 'max'
+                                    ? `https://max.ru/${String(value).replace('@', '')}`
+                                    : undefined;
+
+                          return href ? (
+                            <a
+                              key={key}
+                              href={href}
+                              target={key === 'phone' ? undefined : '_blank'}
+                              rel={key === 'phone' ? undefined : 'noreferrer'}
+                              className="block text-emerald-600 hover:text-emerald-700 py-1 text-sm break-words"
+                            >
+                              {String(value)}
+                            </a>
+                          ) : (
+                            <span key={key} className="text-sm text-gray-700 break-words">
+                              {String(value)}
+                            </span>
+                          );
+                        })}
+                      </div>
                   )}
 
-                  {/* Блоки со счетчиками */}
-                  <div className="flex gap-4">
-                    <div 
-                      onClick={() => openModal('statuses', point.id)}   // ← добавили point.id
-                      className="flex-1 flex items-center gap-3 bg-emerald-50 p-4 rounded-2xl cursor-pointer hover:bg-emerald-100 active:bg-emerald-200"
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => openDetail(point.id, 'statuses')}
+                      className="flex items-center justify-center gap-3 bg-gray-50 p-3 rounded-2xl hover:bg-gray-100 active:bg-gray-200"
                     >
                       {getStatusIcon(fullPoint?.most_confirmed_status?.status || 'working')}
-                      <div>
-                        <p className="text-sm font-medium">Статусы</p>
-                        <p className="text-emerald-600 text-sm">
+                      <div className="text-left">
+                        <p className="text-xs font-medium">Статусы</p>
+                        <p className="text-gray-600 text-xs">
                           {fullPoint?.most_confirmed_status?.confirmed_by || 0}
                         </p>
                       </div>
-                    </div>
-                    <div 
-                      onClick={() => openModal('reviews', point.id)}    // ← добавили point.id
-                      className="flex-1 flex items-center gap-3 bg-gray-50 p-4 rounded-2xl cursor-pointer hover:bg-gray-100 active:bg-gray-200"
+                    </button>
+
+                    <button
+                      onClick={() => openDetail(point.id, 'reviews')}
+                      className="flex items-center justify-center gap-3 bg-gray-50 p-3 rounded-2xl hover:bg-gray-100 active:bg-gray-200"
                     >
-                      <MessageCircle size={20} className="text-gray-500" />
-                      <div>
-                        <p className="text-sm font-medium">Отзывы</p>
-                        <p className="text-gray-600 text-sm">{fullPoint?.reviews_count ?? 0}</p>
+                      <MessageCircle size={22} className="text-gray-500" />
+                      <div className="text-left">
+                        <p className="text-xs font-medium">Отзывы</p>
+                        <p className="text-gray-600 text-xs">{fullPoint?.reviews_count ?? 0}</p>
                       </div>
-                    </div>
+                    </button>
                   </div>
-                  <div className="text-xs text-gray-500 pt-3 border-t">
-                    Последнее обновление: {fullPoint.last_local_update_at 
-                      ? new Date(fullPoint.last_local_update_at).toLocaleDateString('ru-RU', { 
-                          day: 'numeric', month: 'long', year: 'numeric' 
-                        })
-                      : 'Нет данных'}
+
+                  <div className="text-xs text-gray-500 pt-2 border-t space-y-1">
+                    <div>
+                      Обновлено:{' '}
+                      {fullPoint?.last_local_update_at
+                        ? new Date(fullPoint.last_local_update_at).toLocaleDateString('ru-RU', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                          })
+                        : 'Нет данных'}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      Источник:{' '}
+                      <span className="font-medium text-gray-700">
+                        {fullPoint ? getUpdateSource(fullPoint) : 'Неизвестно'}
+                      </span>
+                    </div>
+
+                    <div
+                      className="pt-2 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors"
+                      onClick={() => {
+                        const pointToUpdate = fullPoint || point;
+                        setSelectedPointForUpdate(pointToUpdate);
+                        setIsUpdateModalOpen(true);
+                      }}
+                    >
+                      <p className="text-emerald-600 flex items-center gap-2 hover:underline">
+                        Есть более актуальные данные?
+                        <span>📝</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -231,84 +450,287 @@ const MapBlock = () => {
         )}
       </div>
 
-      {/* Модальное окно */}
-      {showModal && selectedPoint && (
-        <div className="fixed inset-0 bg-black/70 z-100 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-110 max-h-[90vh] rounded-3xl overflow-hidden flex flex-col">
-
-            {/* Заголовок */}
-            <div className="p-5 border-b flex justify-between items-center">
-              <h2 className="text-xl font-semibold">{selectedPoint.name}</h2>
-              <button 
-                onClick={() => setShowModal(null)} 
-                className="text-gray-400 hover:text-gray-600 text-3xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Содержимое */}
-            <div className="flex-1 overflow-auto">
-
-              {/* Статистика статусов */}
-              <div className="p-5 border-b">
-                <p className="text-sm font-medium text-gray-500 mb-4">Статусы от пользователей</p>
-                <div className="space-y-3">
-                  {selectedPoint.statuses_summary && selectedPoint.statuses_summary.length > 0 ? (
-                    selectedPoint.statuses_summary.map((s, index) => (
-                      <div 
-                        key={index} 
-                        className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl"
-                      >
-                        <div className="flex items-center gap-3">
-                          {getStatusIcon(s.status)}
-                          <span className="capitalize font-medium">{s.status}</span>
-                        </div>
-                        <span className="font-semibold text-xl text-emerald-600">
-                          {s.confirmed_by}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-center py-6 text-gray-500">Пока нет статусов</p>
+      {detailPointId !== null && (
+        <div className="fixed inset-0 bg-black/70 z-200 flex items-center justify-center p-4 sm:p-0">
+          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-5 border-b flex justify-between items-start gap-2">
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-semibold break-words">
+                  {detailPoint?.name || 'Эко-точка'}
+                </h2>
+                <div className="text-sm text-gray-500 mt-2 space-y-1">
+                  {detailPoint?.address && (
+                    <p className="flex items-center gap-2">
+                      <MapPin size={16} />
+                      <span>{detailPoint.address}</span>
+                    </p>
+                  )}
+                  {detailPoint?.working_hours && (
+                    <p className="flex items-center gap-2">
+                      <Clock size={16} />
+                      <span>{detailPoint.working_hours}</span>
+                    </p>
                   )}
                 </div>
               </div>
-                
-              {/* Отзывы */}
-              <div className="p-5">
-                <p className="text-sm font-medium text-gray-500 mb-4">Отзывы ({selectedPoint.reviews_count})</p>
-                
-                {selectedPoint.reviews.length > 0 ? (
-                  <div className="space-y-6">
-                    {selectedPoint.reviews.map((review) => (
-                      <div key={review.id} className="border-b pb-6 last:border-none last:pb-0">
-                        {review.comment && (
-                          <p className="text-gray-700 leading-relaxed">{review.comment}</p>
-                        )}
-                        {review.photo_url && (
-                          <img 
-                            src={review.photo_url} 
-                            alt="Фото" 
-                            className="mt-4 rounded-2xl w-full max-h-64 object-cover"
-                          />
-                        )}
-                        <p className="text-xs text-gray-500 mt-4">
-                          {new Date(review.created_at).toLocaleDateString('ru-RU', {
-                            day: 'numeric', month: 'long', year: 'numeric'
-                          })}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center py-12 text-gray-500">Пока нет отзывов</p>
-                )}
+
+              <button onClick={closeDetail} className="text-gray-400 hover:text-gray-600 shrink-0">
+                <X size={26} />
+              </button>
+            </div>
+
+            <div className="px-4 sm:px-5 pt-4 border-b">
+              <div className="flex gap-2 overflow-x-auto pb-3">
+                <button
+                  onClick={() => setDetailTab('statuses')}
+                  className={`px-3 py-2 rounded-2xl text-sm font-medium whitespace-nowrap ${
+                    detailTab === 'statuses'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  Статусы
+                </button>
+                <button
+                  onClick={() => setDetailTab('reviews')}
+                  className={`px-4 py-2 rounded-2xl text-sm font-medium whitespace-nowrap ${
+                    detailTab === 'reviews'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  Отзывы
+                </button>
+                <button
+                  onClick={() => setDetailTab('add-review')}
+                  className={`px-4 py-2 rounded-2xl text-sm font-medium whitespace-nowrap ${
+                    detailTab === 'add-review'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  Оставить отзыв
+                </button>
               </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4 sm:p-5">
+              {detailLoading && <div className="text-center py-10 text-gray-500">Загрузка...</div>}
+
+              {!detailLoading && detailPoint && (
+                <>
+                  {detailTab === 'statuses' && (
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        {statusOptions.map((status) => {
+                          const summary =
+                            detailPoint.statuses_summary?.find((s) => s.status === status) || {
+                              status,
+                              confirmed_by: 0,
+                            };
+                          
+                          return (
+                            <div
+                              key={status}
+                              className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl"
+                            >
+                              <div className="flex items-center gap-3">
+                                {getStatusIcon(status)}
+                                <span className="font-medium capitalize">
+                                  {status === 'working'
+                                    ? 'Работает'
+                                    : status === 'closed'
+                                      ? 'Закрыта'
+                                      : 'Временно закрыта'}
+                                </span>
+                              </div>
+                              <span className="font-semibold text-xl text-emerald-600">
+                                {summary.confirmed_by}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      <form onSubmit={handleAddStatus} className="space-y-3 pt-2 border-t">
+                        <label className="block text-sm font-medium mb-2">Поставить статус</label>
+                      
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {statusOptions.map((status) => (
+                            <label
+                              key={status}
+                              className={`flex items-center gap-2 p-3 rounded-2xl border cursor-pointer ${
+                                selectedStatus === status
+                                  ? 'border-emerald-600 bg-emerald-50'
+                                  : 'border-gray-200 hover:bg-gray-50'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="status"
+                                checked={selectedStatus === status}
+                                onChange={() => setSelectedStatus(status)}
+                              />
+                              <span className="text-sm">
+                                {status === 'working'
+                                  ? 'Работает'
+                                  : status === 'closed'
+                                    ? 'Закрыта'
+                                    : 'Временно закрыта'}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        
+                        {statusError && (
+                          <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-2xl text-sm">
+                            {statusError}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={statusSubmitting}
+                          className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-2xl font-medium"
+                        >
+                          {statusSubmitting ? 'Отправляем...' : 'Сохранить статус'}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
+                  {detailTab === 'reviews' && (
+                    <div className="space-y-5">
+                      <p className="text-sm font-medium text-gray-500">
+                        Отзывы ({detailPoint.reviews_count})
+                      </p>
+
+                      {detailPoint.reviews.length > 0 ? (
+                        <div className="space-y-5">
+                          {detailPoint.reviews.map((review) => (
+                            <div key={review.id} className="border-b pb-5 last:border-none last:pb-0">
+                              <div className="flex items-center justify-between gap-3 mb-3">
+                                <p className="font-medium text-gray-800">
+                                  {review.user_name || `Пользователь #${review.user_name}`}
+                                </p>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(review.created_at).toLocaleDateString('ru-RU', {
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric',
+                                  })}
+                                </span>
+                              </div>
+
+                              <p className="text-gray-700 leading-relaxed text-sm">
+                                {review.comment}
+                              </p>
+
+                              {review.photo_url && (
+                                <img
+                                  src={review.photo_url}
+                                  alt="Фото к отзыву"
+                                  className="mt-4 rounded-2xl w-full max-h-72 object-cover"
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-center py-10 text-gray-500">Пока нет отзывов</p>
+                      )}
+                    </div>
+                  )}
+
+                  {detailTab === 'add-review' && (
+                    <form onSubmit={handleAddReview} className="space-y-4 max-w-xl">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Комментарий</label>
+                        <textarea
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                          className="w-full p-3 border border-gray-300 rounded-2xl focus:outline-none focus:border-emerald-500 h-32"
+                          placeholder="Напишите отзыв о точке..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Фото</label>
+                        <input
+                          ref={photoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handlePhotoChange(e.target.files?.[0] || null)}
+                          className="hidden"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => photoInputRef.current?.click()}
+                          className="w-full py-3 rounded-2xl border border-dashed border-gray-300 bg-gray-50 text-gray-700 flex items-center justify-center gap-2"
+                        >
+                          <ImagePlus size={18} />
+                          {reviewPhotoFile ? 'Заменить фото' : 'Загрузить фото'}
+                        </button>
+
+                        {reviewPhotoPreview && (
+                          <div className="mt-3 relative">
+                            <img
+                              src={reviewPhotoPreview}
+                              alt="Предпросмотр"
+                              className="w-full max-h-72 object-cover rounded-2xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handlePhotoChange(null)}
+                              className="absolute top-2 right-2 bg-black/60 text-white p-2 rounded-full"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {reviewError && (
+                        <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-2xl text-sm">
+                          {reviewError}
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={reviewSubmitting}
+                        className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-2xl font-medium"
+                      >
+                        {reviewSubmitting ? 'Отправляем...' : 'Опубликовать отзыв'}
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      <CreateEcoPointModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
+
+      <UpdateEcoPointModal
+        key={selectedPointForUpdate?.id ?? 'update-modal'}
+        isOpen={isUpdateModalOpen}
+        onClose={() => {
+          setIsUpdateModalOpen(false);
+          setSelectedPointForUpdate(null);
+        }}
+        ecoPoint={selectedPointForUpdate}
+        onSuccess={() => {
+          setIsUpdateModalOpen(false);
+          setSelectedPointForUpdate(null);
+        }}
+      />
     </div>
   );
 };

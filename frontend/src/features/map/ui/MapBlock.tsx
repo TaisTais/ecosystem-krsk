@@ -365,12 +365,12 @@ const MapBlock = () => {
                               href={href}
                               target={key === 'phone' ? undefined : '_blank'}
                               rel={key === 'phone' ? undefined : 'noreferrer'}
-                              className="block text-emerald-600 hover:text-emerald-700 py-1 text-sm break-words"
+                              className="block text-emerald-600 hover:text-emerald-700 py-1 text-sm wrap-break-word"
                             >
                               {String(value)}
                             </a>
                           ) : (
-                            <span key={key} className="text-sm text-gray-700 break-words">
+                            <span key={key} className="text-sm text-gray-700 wrap-break-word">
                               {String(value)}
                             </span>
                           );
@@ -451,11 +451,11 @@ const MapBlock = () => {
       </div>
 
       {detailPointId !== null && (
-        <div className="fixed inset-0 bg-black/70 z-200 flex items-center justify-center p-4 sm:p-0">
-          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-100 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-101">
             <div className="p-4 sm:p-5 border-b flex justify-between items-start gap-2">
               <div className="min-w-0">
-                <h2 className="text-lg sm:text-xl font-semibold break-words">
+                <h2 className="text-lg sm:text-xl font-semibold wrap-break-word">
                   {detailPoint?.name || 'Эко-точка'}
                 </h2>
                 <div className="text-sm text-gray-500 mt-2 space-y-1">

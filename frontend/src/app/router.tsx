@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import LoginPage from '../pages/auth/LoginPage';
+import LoginPage from '../pages/LoginPage';
 import { useAuth } from './context/AuthContext';
 import MapPage from '@/pages/MapPage';
 import FeedPage from '@/pages/FeedPage';

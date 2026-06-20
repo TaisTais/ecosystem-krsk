@@ -168,6 +168,7 @@ const FeedBlock = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+
       <div className="px-4 py-3 sticky top-0 z-50 bg-white border-b">
         <div className="flex gap-3 items-center">
           <div className="flex-1 relative">

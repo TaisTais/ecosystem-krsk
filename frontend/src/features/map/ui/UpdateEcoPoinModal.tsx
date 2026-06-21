@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, MapPin } from 'lucide-react';
-import type { EcoPoint, EcoPointUpdate, EcoPointCategory } from '../../../entities/ecopoint/types';
-import { ecopointApi } from '../../../entities/ecopoint/api';
+import type { EcoPoint, EcoPointUpdate, EcoPointCategory } from '../../../entities/map/types';
+import { ecopointApi } from '../../../entities/map/api';
 
 interface UpdateEcoPointModalProps {
   isOpen: boolean;

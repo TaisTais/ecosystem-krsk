@@ -13,14 +13,20 @@ import {
   ImagePlus,
 } from 'lucide-react';
 import axios from 'axios';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import type { LatLngExpression } from 'leaflet';
+import L from 'leaflet';
 
 import { useEcoPoints } from '../hooks/useEcoPoints';
-import { ecopointApi } from '../../../entities/ecopoint/api';
-import type { EcoPoint, EcoPointDetail, EcoPointStatus } from '../../../entities/ecopoint/types';
+import { ecopointApi } from '../../../entities/map/api';
+import type { EcoPoint, EcoPointDetail, EcoPointStatus } from '../../../entities/map/types';
 import { CreateEcoPointModal } from './CreateEcoPointModel';
 import UpdateEcoPointModal from './UpdateEcoPoinModal';
 
 const statusOptions: EcoPointStatus[] = ['working', 'closed', 'temporarily_closed'];
+
+const CENTER: LatLngExpression = [56.015, 92.89];
+const ZOOM = 12;
 
 type DetailTab = 'statuses' | 'reviews' | 'add-review';
 
@@ -28,6 +34,22 @@ type ApiErrorResponse = {
   detail?: string | Array<{ msg?: string } | string>;
   message?: string;
 };
+
+const markerIcon = L.divIcon({
+  className: 'custom-emerald-marker',
+  html: `
+    <div style="
+      width: 18px;
+      height: 18px;
+      background: #10b981;
+      border: 2px solid #ffffff;
+      border-radius: 9999px;
+      box-shadow: 0 1px 5px rgba(16, 185, 129, 0.45);
+    "></div>
+  `,
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
 
 const MapBlock = () => {
   const { points, loading, error } = useEcoPoints();
@@ -62,6 +84,11 @@ const MapBlock = () => {
         point.name.toLowerCase().includes(q) || point.address.toLowerCase().includes(q)
     );
   }, [points, search]);
+
+  const visiblePoints = useMemo(() => {
+    if (detailPointId === null) return filteredPoints;
+    return filteredPoints.filter((point) => point.id === detailPointId);
+  }, [filteredPoints, detailPointId]);
 
   const loadFullPoint = async (id: number): Promise<EcoPoint | null> => {
     if (fullPointCache[id]) return fullPointCache[id];
@@ -124,6 +151,13 @@ const MapBlock = () => {
     if (!recycleDate) return 'Экосистема Красноярска';
 
     return localDate > recycleDate ? 'Экосистема Красноярска' : 'RecycleMap';
+  };
+
+  const selectPoint = async (id: number) => {
+    setDetailPointId(id);
+    setDetailPoint(null);
+    setExpandedPointId(id);
+    await loadFullPoint(id);
   };
 
   const openDetail = async (id: number, tab: DetailTab = 'statuses') => {
@@ -238,13 +272,17 @@ const MapBlock = () => {
   };
 
   const closeDetail = () => {
-    setDetailPointId(null);
     setDetailPoint(null);
     setDetailTab('statuses');
     setStatusError(null);
     setReviewError(null);
     setReviewComment('');
     handlePhotoChange(null);
+  };
+  
+  const backToList = () => {
+    setDetailPointId(null);
+    closeDetail();
   };
 
   return (
@@ -276,32 +314,85 @@ const MapBlock = () => {
       </div>
 
       <div
-        className={`bg-gray-200 border-b transition-all duration-300 shrink-0 relative ${
-          isMapExpanded ? 'h-[60vh]' : 'h-[28vh]'
+        className={`relative transition-all duration-300 border-b ${
+          isMapExpanded ? 'h-[55vh]' : 'h-[28vh]'
         }`}
-        onClick={() => setIsMapExpanded((prev) => !prev)}
       >
-        <div className="h-full flex items-center justify-center bg-linear-to-br from-emerald-50 to-teal-100">
-          <div className="text-center px-4">
-            <div className="text-6xl mb-3">🗺️</div>
-            <p className="font-semibold text-base">Интерактивная карта</p>
-            <p className="text-sm text-gray-500">Нажмите, чтобы развернуть / свернуть</p>
-          </div>
-        </div>
+        <MapContainer
+          center={CENTER}
+          zoom={ZOOM}
+          className="h-full w-full"
+          zoomControl
+          scrollWheelZoom
+          wheelDebounceTime={120}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          {filteredPoints.map((point) => (
+            <Marker
+              key={point.id}
+              position={[point.latitude, point.longitude]}
+              icon={markerIcon}
+              eventHandlers={{
+                click: () => selectPoint(point.id),
+              }}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <strong>{point.name}</strong>
+                  <br />
+                  <span className="text-gray-600">{point.address}</span>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+
+        <button
+          onClick={() => setIsMapExpanded((prev) => !prev)}
+          className="absolute bottom-4 right-4 z-1000 bg-white shadow-md rounded-full px-4 py-3 text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 transition-colors text-sm font-medium"
+        >
+          {isMapExpanded ? '↓ Свернуть карту' : '↑ Развернуть карту'}
+        </button>
       </div>
 
       <div className="px-4 py-4 space-y-4 pb-24">
         {loading && <div className="text-center py-12 text-gray-500">Загрузка точек...</div>}
         {error && <div className="bg-red-50 p-4 rounded-2xl text-red-600">{error}</div>}
 
-        {filteredPoints.map((point) => {
+        {detailPointId !== null && (
+          <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 p-4">
+            <div>
+              <h2 className="font-semibold text-base">
+                {detailPoint?.name || 'Выбранная точка'}
+              </h2>
+              <p className="text-sm text-gray-500">Показана только одна точка</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={backToList}
+              className="px-3 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm"
+            >
+              Назад
+            </button>
+          </div>
+        )}
+
+        {visiblePoints.map((point) => {
           const isExpanded = expandedPointId === point.id;
           const fullPoint = fullPointCache[point.id] || null;
+          const isSelected = detailPointId === point.id;
 
           return (
             <div
               key={point.id}
-              className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
+              className={`bg-white rounded-3xl shadow-sm border overflow-hidden ${
+                isSelected ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-gray-100'
+              }`}
             >
               <div
                 onClick={() => toggleExpand(point.id)}
@@ -342,40 +433,40 @@ const MapBlock = () => {
                   )}
 
                   {fullPoint.contacts && Object.keys(fullPoint.contacts).length > 0 && (
-                      <div className="flex flex-col gap-2">
-                        {Object.entries(fullPoint.contacts).map(([key, value]) => {
-                          if (!value) return null;
+                    <div className="flex flex-col gap-2">
+                      {Object.entries(fullPoint.contacts).map(([key, value]) => {
+                        if (!value) return null;
 
-                          const href =
-                            key === 'phone'
-                              ? `tel:${value}`
-                              : key === 'website'
-                                ? String(value)
-                                : key === 'vk'
-                                  ? String(value).startsWith('http')
-                                    ? String(value)
-                                    : `https://vk.com/${String(value).replace('@', '')}`
-                                  : key === 'max'
-                                    ? `https://max.ru/${String(value).replace('@', '')}`
-                                    : undefined;
+                        const href =
+                          key === 'phone'
+                            ? `tel:${value}`
+                            : key === 'website'
+                              ? String(value)
+                              : key === 'vk'
+                                ? String(value).startsWith('http')
+                                  ? String(value)
+                                  : `https://vk.com/${String(value).replace('@', '')}`
+                                : key === 'max'
+                                  ? `https://max.ru/${String(value).replace('@', '')}`
+                                  : undefined;
 
-                          return href ? (
-                            <a
-                              key={key}
-                              href={href}
-                              target={key === 'phone' ? undefined : '_blank'}
-                              rel={key === 'phone' ? undefined : 'noreferrer'}
-                              className="block text-emerald-600 hover:text-emerald-700 py-1 text-sm wrap-break-word"
-                            >
-                              {String(value)}
-                            </a>
-                          ) : (
-                            <span key={key} className="text-sm text-gray-700 wrap-break-word">
-                              {String(value)}
-                            </span>
-                          );
-                        })}
-                      </div>
+                        return href ? (
+                          <a
+                            key={key}
+                            href={href}
+                            target={key === 'phone' ? undefined : '_blank'}
+                            rel={key === 'phone' ? undefined : 'noreferrer'}
+                            className="block text-emerald-600 hover:text-emerald-700 py-1 text-sm wrap-break-word"
+                          >
+                            {String(value)}
+                          </a>
+                        ) : (
+                          <span key={key} className="text-sm text-gray-700 wrap-break-word">
+                            {String(value)}
+                          </span>
+                        );
+                      })}
+                    </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-3">
@@ -443,16 +534,16 @@ const MapBlock = () => {
           );
         })}
 
-        {filteredPoints.length === 0 && !loading && (
+        {visiblePoints.length === 0 && !loading && (
           <div className="text-center py-12 text-gray-500">
             Ничего не найдено по вашему запросу
           </div>
         )}
       </div>
 
-      {detailPointId !== null && (
-        <div className="fixed inset-0 z-100 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-101">
+      {detailPointId !== null && detailPoint && (
+        <div className="fixed inset-0 z-2000 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-2001">
             <div className="p-4 sm:p-5 border-b flex justify-between items-start gap-2">
               <div className="min-w-0">
                 <h2 className="text-lg sm:text-xl font-semibold wrap-break-word">
@@ -528,7 +619,7 @@ const MapBlock = () => {
                               status,
                               confirmed_by: 0,
                             };
-                          
+
                           return (
                             <div
                               key={status}
@@ -551,10 +642,10 @@ const MapBlock = () => {
                           );
                         })}
                       </div>
-                      
+
                       <form onSubmit={handleAddStatus} className="space-y-3 pt-2 border-t">
                         <label className="block text-sm font-medium mb-2">Поставить статус</label>
-                      
+
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           {statusOptions.map((status) => (
                             <label
@@ -581,7 +672,7 @@ const MapBlock = () => {
                             </label>
                           ))}
                         </div>
-                        
+
                         {statusError && (
                           <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-2xl text-sm">
                             {statusError}
@@ -611,7 +702,7 @@ const MapBlock = () => {
                             <div key={review.id} className="border-b pb-5 last:border-none last:pb-0">
                               <div className="flex items-center justify-between gap-3 mb-3">
                                 <p className="font-medium text-gray-800">
-                                  {review.user_name || `Пользователь #${review.user_name}`}
+                                  {review.user_name || `Пользователь #${review.user_id}`}
                                 </p>
                                 <span className="text-xs text-gray-500">
                                   {new Date(review.created_at).toLocaleDateString('ru-RU', {

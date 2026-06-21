@@ -2,8 +2,8 @@ import axios from 'axios';
 import { useState } from 'react';
 import { X, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ecopointApi } from '../../../entities/ecopoint/api';
-import type { EcoPointCreate, EcoPointCategory } from '../../../entities/ecopoint/types';
+import { ecopointApi } from '../../../entities/map/api';
+import type { EcoPointCreate, EcoPointCategory } from '../../../entities/map/types';
 import { useAuth } from '@/app/context/AuthContext';
 
 const availableCategories: { value: EcoPointCategory; label: string }[] = [

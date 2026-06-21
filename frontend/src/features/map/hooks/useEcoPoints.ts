@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ecopointApi } from '../../../entities/ecopoint/api';
-import type { EcoPointList } from '../../../entities/ecopoint/types';
+import { ecopointApi } from '../../../entities/map/api';
+import type { EcoPointList } from '../../../entities/map/types';
 
 export const useEcoPoints = () => {
   const [points, setPoints] = useState<EcoPointList[]>([]);

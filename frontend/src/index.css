@@ -2,6 +2,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -120,6 +121,10 @@
 
 body {
   font-family: var(--font-inter);
+}
+
+.leaflet-marker-icon {
+  filter: hue-rotate(80deg) saturate(1.5);
 }
 
 @layer base {

@@ -24,7 +24,11 @@ const MapHeader = ({ search, onSearchChange, onFilterClick, onCreate }: Props) =
             <Search className="absolute left-4 top-3.5 text-gray-400" size={22} />
           </div>
 
-          <button onClick={onFilterClick} className="p-3 text-emerald-600 hover:bg-emerald-50 rounded-2xl">
+          <button
+            onClick={onFilterClick}
+            className="p-3 text-emerald-600 hover:bg-emerald-50 rounded-2xl"
+            type="button"
+          >
             <Filter size={24} />
           </button>
         </div>
@@ -33,6 +37,7 @@ const MapHeader = ({ search, onSearchChange, onFilterClick, onCreate }: Props) =
         <button
           onClick={onCreate}
           className="p-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-colors"
+          type="button"
         >
           <Plus size={24} />
         </button>

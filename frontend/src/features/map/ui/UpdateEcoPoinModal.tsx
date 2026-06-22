@@ -11,16 +11,16 @@ interface UpdateEcoPointModalProps {
 }
 
 const availableCategories: Array<{ value: EcoPointCategory; label: string }> = [
-  { value: 'PLASTIC', label: 'Пластик' },
-  { value: 'PAPER', label: 'Макулатура' },
-  { value: 'GLASS', label: 'Стекло' },
-  { value: 'METAL', label: 'Металл' },
-  { value: 'BATTERIES', label: 'Батарейки' },
-  { value: 'CLOTHES', label: 'Одежда' },
-  { value: 'ELECTRONICS', label: 'Электроника' },
-  { value: 'HAZARDOUS', label: 'Опасные отходы' },
-  { value: 'OTHER', label: 'Другое' },
-  { value: 'OWN_TARA', label: 'Своя тара' },
+  { value: 'plastic', label: 'Пластик' },
+  { value: 'paper', label: 'Макулатура' },
+  { value: 'glass', label: 'Стекло' },
+  { value: 'metal', label: 'Металл' },
+  { value: 'batteries', label: 'Батарейки' },
+  { value: 'clothes', label: 'Одежда' },
+  { value: 'electronics', label: 'Электроника' },
+  { value: 'hazardous', label: 'Опасные отходы' },
+  { value: 'other', label: 'Другое' },
+  { value: 'own_tara', label: 'Своя тара' },
 ];
 
 const getInitialFormData = (ecoPoint: EcoPoint | null): Partial<EcoPointUpdate> => {
@@ -56,18 +56,18 @@ const UpdateEcoPointModal: React.FC<UpdateEcoPointModalProps> = ({
   const [submitted, setSubmitted] = useState(false);
 
   const selectedTypes = formData.types || [];
-  const isOwnTaraSelected = selectedTypes.includes('OWN_TARA' as EcoPointCategory);
-  const hasOtherTypesSelected = selectedTypes.some((t) => t !== 'OWN_TARA');
+  const isOwnTaraSelected = selectedTypes.includes('own_tara' as EcoPointCategory);
+  const hasOtherTypesSelected = selectedTypes.some((t) => t !== 'own_tara');
 
   const handleTypeChange = (cat: EcoPointCategory, checked: boolean) => {
     const current = formData.types || [];
     let newTypes: EcoPointCategory[] = [];
 
     if (checked) {
-      if (cat === 'OWN_TARA') {
-        newTypes = ['OWN_TARA'];
+      if (cat === 'own_tara') {
+        newTypes = ['own_tara'];
       } else {
-        newTypes = [...current.filter((t) => t !== 'OWN_TARA'), cat];
+        newTypes = [...current.filter((t) => t !== 'own_tara'), cat];
       }
     } else {
       newTypes = current.filter((t) => t !== cat);
@@ -135,7 +135,7 @@ const UpdateEcoPointModal: React.FC<UpdateEcoPointModalProps> = ({
   if (!isOpen || !ecoPoint) return null;
 
   return (
-    <div className="fixed inset-0 z-100 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-2000 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col relative z-101">
         <div className="p-5 border-b flex items-center justify-between">
           <div>
@@ -192,8 +192,8 @@ const UpdateEcoPointModal: React.FC<UpdateEcoPointModalProps> = ({
               <div className="grid grid-cols-2 gap-2 pr-2">
                 {availableCategories.map((cat) => {
                   const isDisabled =
-                    (cat.value === 'OWN_TARA' && hasOtherTypesSelected) ||
-                    (cat.value !== 'OWN_TARA' && isOwnTaraSelected);
+                    (cat.value === 'own_tara' && hasOtherTypesSelected) ||
+                    (cat.value !== 'own_tara' && isOwnTaraSelected);
 
                   return (
                     <label

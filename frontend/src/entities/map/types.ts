@@ -4,16 +4,16 @@ export type SourceType = "local" | "recyclemap";
 export type EcoPointStatus = "working" | "closed" | "temporarily_closed";
 
 export type EcoPointCategory =
-  | "PLASTIC"
-  | "PAPER"
-  | "GLASS"
-  | "METAL"
-  | "BATTERIES"
-  | "CLOTHES"
-  | "ELECTRONICS"
-  | "HAZARDOUS"
-  | "OTHER"
-  | "OWN_TARA";
+  | "plastic"
+  | "paper"
+  | "glass"
+  | "metal"
+  | "batteries"
+  | "clothes"
+  | "electronics"
+  | "hazardous"
+  | "other"
+  | "own_tara";
 
 
 export type EcoPointReview = {

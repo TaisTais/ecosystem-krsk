@@ -5,12 +5,12 @@ import MapPage from '@/pages/MapPage';
 import FeedPage from '@/pages/FeedPage';
 import EventsPage from '@/pages/EventsPage';
 import HomePage from '@/pages/HomePage';
+import ProfilePage from '@/pages/ProfilePage';
 
-// Пока заглушки для страниц
-const ProfilePage = () => <h1 className="p-8 text-2xl">Личный кабинет</h1>;
 
 const AppRouter = () => {
   const { isAuthenticated } = useAuth();
+  
 
   return (
     <Routes>
@@ -20,11 +20,10 @@ const AppRouter = () => {
       <Route path="/feed" element={<FeedPage />} />
       <Route path="/login" element={<LoginPage/>} />
       <Route path="/events" element={<EventsPage />} />
-
       {/* Защищённые страницы — только для авторизованных */}
       <Route 
         path="/profile" 
-        element={isAuthenticated ? <ProfilePage /> : <Navigate to="/login" />} 
+        element={isAuthenticated ? <ProfilePage /> : <LoginPage/>}
       />
 
       {/* Если пользователь ввёл неизвестный адрес */}

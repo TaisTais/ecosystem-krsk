@@ -7,16 +7,16 @@ import type { EcoPointCreate, EcoPointCategory } from '../../../entities/map/typ
 import { useAuth } from '@/app/context/AuthContext';
 
 const availableCategories: { value: EcoPointCategory; label: string }[] = [
-  { value: 'PLASTIC', label: 'Пластик' },
-  { value: 'PAPER', label: 'Макулатура' },
-  { value: 'GLASS', label: 'Стекло' },
-  { value: 'METAL', label: 'Металл' },
-  { value: 'BATTERIES', label: 'Батарейки' },
-  { value: 'CLOTHES', label: 'Одежда' },
-  { value: 'ELECTRONICS', label: 'Электроника' },
-  { value: 'HAZARDOUS', label: 'Опасные отходы' },
-  { value: 'OTHER', label: 'Другое' },
-  { value: 'OWN_TARA', label: 'Своя тара' },
+  { value: 'plastic', label: 'Пластик' },
+  { value: 'paper', label: 'Макулатура' },
+  { value: 'glass', label: 'Стекло' },
+  { value: 'metal', label: 'Металл' },
+  { value: 'batteries', label: 'Батарейки' },
+  { value: 'clothes', label: 'Одежда' },
+  { value: 'electronics', label: 'Электроника' },
+  { value: 'hazardous', label: 'Опасные отходы' },
+  { value: 'other', label: 'Другое' },
+  { value: 'own_tara', label: 'Своя тара' },
 ];
 
 type CreateEcoPointModalProps = {
@@ -46,7 +46,7 @@ export const CreateEcoPointModal = ({ isOpen, onClose }: CreateEcoPointModalProp
 
   if (isOpen && !isAuthenticated) {
     return (
-      <div className="fixed inset-0 bg-black/70 z-200 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/70 z-2000 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl max-w-md w-full p-8 text-center">
           <div className="text-5xl mb-6">🔒</div>
           <h2 className="text-2xl font-semibold mb-3">Войдите в аккаунт</h2>
@@ -79,9 +79,9 @@ export const CreateEcoPointModal = ({ isOpen, onClose }: CreateEcoPointModalProp
     const current = (formData.types ?? []) as EcoPointCategory[];
 
     const nextTypes: EcoPointCategory[] = checked
-      ? cat === 'OWN_TARA'
-        ? ['OWN_TARA' as EcoPointCategory]
-        : [...current.filter((t) => t !== 'OWN_TARA'), cat]
+      ? cat === 'own_tara'
+        ? ['own_tara' as EcoPointCategory]
+        : [...current.filter((t) => t !== 'own_tara'), cat]
       : current.filter((t) => t !== cat);
 
     setFormData({ ...formData, types: nextTypes });
@@ -193,8 +193,8 @@ export const CreateEcoPointModal = ({ isOpen, onClose }: CreateEcoPointModalProp
   }
 
   const selectedTypes = formData.types || [];
-  const isOwnTaraSelected = selectedTypes.includes('OWN_TARA' as EcoPointCategory);
-  const hasOtherTypesSelected = selectedTypes.some((t) => t !== 'OWN_TARA');
+  const isOwnTaraSelected = selectedTypes.includes('own_tara' as EcoPointCategory);
+  const hasOtherTypesSelected = selectedTypes.some((t) => t !== 'own_tara');
 
   return (
     <div className="fixed inset-0 z-100 bg-black/35 backdrop-blur-[2px] flex items-center justify-center p-4">
@@ -236,8 +236,8 @@ export const CreateEcoPointModal = ({ isOpen, onClose }: CreateEcoPointModalProp
             <div className="grid grid-cols-2 gap-2 pr-2">
               {availableCategories.map((cat) => {
                 const isDisabled =
-                  (cat.value === 'OWN_TARA' && hasOtherTypesSelected) ||
-                  (cat.value !== 'OWN_TARA' && isOwnTaraSelected);
+                  (cat.value === 'own_tara' && hasOtherTypesSelected) ||
+                  (cat.value !== 'own_tara' && isOwnTaraSelected);
 
                 return (
                   <label

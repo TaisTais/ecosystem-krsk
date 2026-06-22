@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from '../../../app/context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import api from '../../../shared/lib/api';
 
 type Mode = 'login' | 'register';
@@ -14,7 +13,6 @@ export const AuthForm = () => {
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,41 +20,44 @@ export const AuthForm = () => {
     setLoading(true);
 
     try {
+      let token: string;
+
       if (mode === 'login') {
         const res = await api.post('/auth/login', { email, password });
-        const token = res.data.access_token;
-
-        localStorage.setItem('access_token', token);
-
-        const userRes = await api.get('/me/');
-        login(token, userRes.data);
+        token = res.data.access_token;
       } else {
         await api.post('/auth/register', { name, email, password });
-
         const loginRes = await api.post('/auth/login', { email, password });
-        const token = loginRes.data.access_token;
-
-        localStorage.setItem('access_token', token);
-
-        const userRes = await api.get('/me/');
-        login(token, userRes.data);
+        token = loginRes.data.access_token;
       }
 
-      navigate('/profile');
+      // === НАДЁЖНОЕ СОХРАНЕНИЕ ТОКЕНА ===
+      localStorage.setItem('access_token', token);
+      console.log('🔑 Токен сохранён:', token.slice(0, 30) + '...');
+
+      // Получаем пользователя
+      const userRes = await api.get('/me/');
+      const userData = userRes.data;
+
+      // Логиним в контекст
+      login(token, userData);
+
+      console.log('✅ Авторизация успешна → редирект');
+
+      // Используем window.location для надёжного редиректа
+      window.location.href = '/profile';
+
     } catch (err: unknown) {
-      let message =
-        mode === 'login'
-          ? 'Неверный email или пароль'
-          : 'Не удалось зарегистрироваться';
+      console.error('❌ Ошибка при авторизации:', err);
 
-      if (err && typeof err === 'object' && err !== null) {
-        const errorAny = err as Record<string, unknown>;
-        const response = errorAny.response as Record<string, unknown> | undefined;
-        const data = response?.data as Record<string, unknown> | undefined;
+      let message = mode === 'login'
+        ? 'Неверный email или пароль'
+        : 'Не удалось зарегистрироваться';
 
-        if (typeof data?.detail === 'string') {
-          message = data.detail;
-        }
+      if (err && typeof err === 'object' && 'response' in err) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response = (err as any).response;
+        if (response?.data?.detail) message = response.data.detail;
       }
 
       setError(message);
@@ -126,12 +127,8 @@ export const AuthForm = () => {
             className="w-full bg-emerald-600 text-white py-3.5 rounded-2xl font-medium hover:bg-emerald-700 transition disabled:opacity-70"
           >
             {loading
-              ? mode === 'login'
-                ? 'Входим...'
-                : 'Регистрируем...'
-              : mode === 'login'
-                ? 'Войти'
-                : 'Зарегистрироваться'}
+              ? mode === 'login' ? 'Входим...' : 'Регистрируем...'
+              : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
           </button>
         </form>
 

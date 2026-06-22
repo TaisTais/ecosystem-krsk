@@ -1,14 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import {
-  Search,
-  Filter,
   MessageCircle,
   Clock,
   MapPin,
   ThumbsUp,
   XCircle,
   CircleEllipsis,
-  Plus,
   X,
   ImagePlus,
 } from 'lucide-react';
@@ -22,6 +19,9 @@ import { ecopointApi } from '../../../entities/map/api';
 import type { EcoPoint, EcoPointDetail, EcoPointStatus } from '../../../entities/map/types';
 import { CreateEcoPointModal } from './CreateEcoPointModel';
 import UpdateEcoPointModal from './UpdateEcoPoinModal';
+import MapHeader from './MapHeader';
+import type { EcoPointCategory } from '../../../entities/map/types';
+
 
 const statusOptions: EcoPointStatus[] = ['working', 'closed', 'temporarily_closed'];
 
@@ -73,17 +73,28 @@ const MapBlock = () => {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewPhotoFile, setReviewPhotoFile] = useState<File | null>(null);
   const [reviewPhotoPreview, setReviewPhotoPreview] = useState<string | null>(null);
+  
+const [isFilterOpen, setIsFilterOpen] = useState(false);
+const [selectedTypes, setSelectedTypes] = useState<EcoPointCategory[]>([]);
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const filteredPoints = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return points;
-    return points.filter(
-      (point) =>
-        point.name.toLowerCase().includes(q) || point.address.toLowerCase().includes(q)
-    );
-  }, [points, search]);
+
+    return points.filter((point) => {
+      const matchesSearch =
+        !q ||
+        point.name.toLowerCase().includes(q) ||
+        point.address.toLowerCase().includes(q);
+
+      const matchesTypes =
+        selectedTypes.length === 0 ||
+        selectedTypes.some((type) => point.types?.includes(type));
+
+      return matchesSearch && matchesTypes;
+    });
+  }, [points, search, selectedTypes]);
 
   const visiblePoints = useMemo(() => {
     if (detailPointId === null) return filteredPoints;
@@ -128,6 +139,19 @@ const MapBlock = () => {
     };
     return colors[type.toLowerCase()] || 'bg-gray-100 text-gray-700';
   };
+
+  const typeOptions: { value: EcoPointCategory; label: string }[] = [
+    { value: 'plastic', label: 'Пластик' },
+    { value: 'glass', label: 'Стекло' },
+    { value: 'paper', label: 'Бумага' },
+    { value: 'metal', label: 'Металл' },
+    { value: 'batteries', label: 'Батарейки' },
+    { value: 'electronics', label: 'Электроника' },
+    { value: 'clothes', label: 'Одежда' },
+    { value: 'hazardous', label: 'Опасные' },
+    { value: 'own_tara', label: 'Собственная тара' },
+    { value: 'other', label: 'Другое' },
+  ];
 
   const getStatusIcon = (status: EcoPointStatus) => {
     switch (status) {
@@ -287,36 +311,61 @@ const MapBlock = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <div className="px-4 py-3 sticky top-0 z-50 bg-white border-b">
-        <div className="flex gap-3 items-center">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="Поиск эко-точек..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 text-base rounded-2xl border border-gray-200 focus:outline-none focus:border-emerald-500"
-            />
-            <Search className="absolute left-4 top-3.5 text-gray-400" size={22} />
+      <MapHeader
+        search={search}
+        onSearchChange={setSearch}
+        onFilterClick={() => setIsFilterOpen((prev) => !prev)}
+        onCreate={() => setShowCreateModal(true)}
+      />
+      {isFilterOpen && (
+        <div className="px-4 pb-3">
+          <div className="bg-white rounded-3xl border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm">Фильтр по типам</h3>
+              <button
+                type="button"
+                onClick={() => setSelectedTypes([])}
+                className="text-sm text-emerald-600"
+              >
+                Сбросить
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              {typeOptions.map((type) => {
+                const active = selectedTypes.includes(type.value);
+              
+                return (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTypes((prev) =>
+                        prev.includes(type.value)
+                          ? prev.filter((t) => t !== type.value)
+                          : [...prev, type.value]
+                      )
+                    }
+                    className={`px-3 py-2 rounded-2xl text-sm border ${
+                      active
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    {type.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-
-          <button className="p-3 text-emerald-600 hover:bg-emerald-50 rounded-2xl">
-            <Filter size={24} />
-          </button>
-
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="p-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-2xl transition-colors"
-          >
-            <Plus size={24} />
-          </button>
         </div>
-      </div>
+      )}
 
       <div
         className={`relative transition-all duration-300 border-b ${
-          isMapExpanded ? 'h-[55vh]' : 'h-[28vh]'
+          isMapExpanded ? 'h-[55vh]' : 'h-[40vh]'
         }`}
+        style={{ zIndex: 10 }}
       >
         <MapContainer
           center={CENTER}
@@ -325,6 +374,7 @@ const MapBlock = () => {
           zoomControl
           scrollWheelZoom
           wheelDebounceTime={120}
+          attributionControl={false}
         >
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
@@ -414,14 +464,18 @@ const MapBlock = () => {
 
                 {point.types?.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-4">
-                    {point.types.map((type, index) => (
-                      <span
-                        key={`${type}-${index}`}
-                        className={`text-xs px-3 py-1.5 rounded-2xl font-medium ${getTypeColor(type)}`}
-                      >
-                        {type}
-                      </span>
-                    ))}
+                    {point.types.map((type, index) => {
+                      const option = typeOptions.find((item) => item.value === type);
+                    
+                      return (
+                        <span
+                          key={`${type}-${index}`}
+                          className={`text-xs px-3 py-1.5 rounded-2xl font-medium ${getTypeColor(type)}`}
+                        >
+                          {option?.label ?? type}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
               </div>

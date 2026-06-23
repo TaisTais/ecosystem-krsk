@@ -83,7 +83,7 @@ const EventsBlock = () => {
   }, [monthEvents, selectedDay]);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-emerald-50 pb-20">
       <EventsHeader
         monthLabel={monthLabel(cursor)}
         onCreate={() => {

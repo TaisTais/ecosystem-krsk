@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { userApi } from '../../../entities/users/api';
+import { userApi } from '@/entities/profile/api';
+import type { ComplaintList } from '@/entities/complaints/types';
 
 type UseMyComplaintsResult = {
-  data: unknown[] | null;
+  data: ComplaintList | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
 };
 
 export const useMyComplaints = (): UseMyComplaintsResult => {
-  const [data, setData] = useState<unknown[] | null>(null);
+  const [data, setData] = useState<ComplaintList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,10 +19,14 @@ export const useMyComplaints = (): UseMyComplaintsResult => {
     setError(null);
 
     try {
-      const result = await userApi.getMyComplaints();
+      const result = await userApi.getMyComplaints();   // ← вот здесь главное изменение
       setData(result);
-    } catch {
-      setError('Не удалось загрузить жалобы');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      const message = err?.response?.data?.detail || 'Не удалось загрузить жалобы';
+      setError(message);
+      console.error(err);
+      setData(null);
     } finally {
       setLoading(false);
     }

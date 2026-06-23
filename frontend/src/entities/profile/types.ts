@@ -1,6 +1,26 @@
 import type { EventRead } from "../events/types";
 
 export type UserRole = 'citizen' | 'organization' | 'moderator' | 'admin';
+export type ModerationStatus = 'pending' | 'approved' | 'rejected';
+
+export type ActionType = 
+  | 'add_point'
+  | 'update_point'
+  | 'participate_event'
+  | 'organize_event'
+  | 'set_status'
+  | 'write_review';
+
+export type ModerationRecordRead = {
+  id: number;
+  action_type: ActionType;
+  action_id: number;
+  status: ModerationStatus;
+  created_at: string;
+  moderated_at?: string | null;
+  moderator_comment?: string | null;
+  user_name?: string | null;
+};
 
 export type UserPublicRead = {
   id: number;
@@ -55,4 +75,12 @@ export type MyEventsRead = {
   as_organizer?: EventRead[];
   as_participant?: EventRead[];
   as_applicant?: EventRead[];
+};
+
+// Добавь этот тип
+export type UserUpdate = {
+  name?: string;
+  email?: string;
+  description?: string;
+  inn?: string;
 };

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Heart, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import axios from 'axios';
 
-import type { PostRead } from '../../../entities/feed/types';
+import type { PostRead, UserRole } from '../../../entities/feed/types';
 import { feedApi } from '../../../entities/feed/api';
 import PostActionsMenu from './PostActionsMenu';
 
@@ -13,6 +13,13 @@ type Props = {
   onOpenComments: (postId: number) => void;
   onOpenEdit: (postId: number) => void;
   onRefresh: () => void;
+};
+
+const roleLabels: Record<UserRole, string> = {
+  citizen: 'Житель',
+  moderator: 'Модератор',
+  organization: 'Организация',
+  admin: 'Администратор',
 };
 
 const PREVIEW_LIMIT = 180;
@@ -92,7 +99,7 @@ const PostCard = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-base sm:text-lg">{post.author_name}</h3>
-              <span className="text-xs text-gray-500">· {post.author_role}</span>
+              <span className="text-xs text-gray-500">· {roleLabels[post.author_role]}</span>
             </div>
           </div>
 

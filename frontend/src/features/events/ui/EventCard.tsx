@@ -51,31 +51,34 @@ const EventCard = ({ event, currentUserRole, onRefresh, onOpenEdit }: Props) => 
     return end ? `${fmt(start)}–${fmt(end)}` : fmt(start);
   }, [event.start_datetime, event.end_datetime]);
 
-  const actionLabel = event.is_user_applicant
-    ? event.status === 'finished'
-      ? 'Подтвердить участие'
-      : 'Отменить заявку'
-    : 'Записаться';
+  const actionLabel = useMemo(() => {
+  if (event.is_user_applicant) {
+    return event.status === 'finished' ? 'Подтвердить участие' : 'Отменить заявку';
+  }
+  return 'Записаться';
+}, [event.is_user_applicant, event.status]);
 
   const handleAction = async () => {
-    setLoading(true);
-    try {
-      if (event.is_user_applicant && event.status !== 'finished') {
-        await eventsApi.cancelApplication(event.id);
-      } else if (event.status === 'active' || event.status === 'full') {
-        await eventsApi.applyToEvent(event.id);
-      } else if (event.status === 'finished') {
-        await eventsApi.confirmParticipation(event.id, '');
-      }
-      onRefresh();
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        console.error(err.response?.data);
-      }
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    if (event.is_user_applicant) {
+      // Уже подавал заявку → отменяем
+      await eventsApi.cancelApplication(event.id);
+    } else {
+      // Подаём заявку
+      await eventsApi.applyToEvent(event.id);
     }
-  };
+    
+    onRefresh(); // ← это самое важное
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      console.error(err.response?.data);
+      // Можно добавить toast с ошибкой
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <article className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

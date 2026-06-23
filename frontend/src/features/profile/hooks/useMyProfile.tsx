@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { userApi } from '../../../entities/users/api';
-import type { UserPublicRead } from '../../../entities/users/types';
+import { userApi } from '../../../entities/profile/api';
+import type { UserPublicRead } from '../../../entities/profile/types';
 
 type UseMyProfileResult = {
   data: UserPublicRead | null;

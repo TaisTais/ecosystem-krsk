@@ -1,6 +1,6 @@
 // src/features/profile/ui/ProfileHeader.tsx
 import PageHeader from '../../../shared/ui/PageHeader';
-import type { UserRole } from '../../../entities/users/types'; // подкорректируй путь
+import type { UserRole } from '../../../entities/profile/types'; // подкорректируй путь
 
 const roleLabels: Record<UserRole, string> = {
   citizen: 'Житель',

@@ -1,39 +1,14 @@
-import axios from 'axios';
+import api from '../../shared/lib/api';
 import type {
   EventCreatePayload,
   EventFilterParams,
   EventRead,
   EventUpdatePayload,
-  MyEventsRead,
 } from './types';
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000',
-  withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
-});
-
-api.interceptors.request.use(request => {
-  console.log('🚀 API Request:', request.method, request.url);
-  return request;
-});
-
-api.interceptors.response.use(
-  response => response,
-  error => {
-    console.error('❌ API Error:', error.response?.status, error.response?.data);
-    return Promise.reject(error);
-  }
-);
 
 export const eventsApi = {
   getCalendar: async (params: EventFilterParams) => {
     const { data } = await api.get<EventRead[]>('/events/', { params });
-    return data;
-  },
-
-  getMyEvents: async (params?: { skip?: number; limit?: number }) => {
-    const { data } = await api.get<MyEventsRead>('/events/my', { params });
     return data;
   },
 

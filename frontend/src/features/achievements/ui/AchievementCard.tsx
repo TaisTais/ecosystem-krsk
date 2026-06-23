@@ -1,4 +1,4 @@
-import type { UserAchievementRead } from '../../../entities/users/types';
+import type { UserAchievementRead } from '../../../entities/profile/types';
 
 type Props = {
   achievement: UserAchievementRead;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { userApi } from '../../../entities/users/api';
-import type { MyEventsRead } from '../../../entities/users/types';
+import { userApi } from '../../../entities/profile/api';
+import type { MyEventsRead } from '../../../entities/profile/types';
 
 type UseMyEventsResult = {
   data: MyEventsRead | null;
@@ -21,8 +21,10 @@ export const useMyEvents = (): UseMyEventsResult => {
     try {
       const result = await userApi.getMyEvents();
       setData(result);
-    } catch (err) {
-      setError('Не удалось загрузить события');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      const message = err?.response?.data?.detail || 'Не удалось загрузить события';
+      setError(message);
       console.error(err);
     } finally {
       setLoading(false);
@@ -34,5 +36,10 @@ export const useMyEvents = (): UseMyEventsResult => {
     void fetchEvents();
   }, [fetchEvents]);
 
-  return { data, loading, error, refetch: fetchEvents };
+  return { 
+    data, 
+    loading, 
+    error, 
+    refetch: fetchEvents 
+  };
 };

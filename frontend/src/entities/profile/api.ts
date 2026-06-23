@@ -1,7 +1,8 @@
 import api from '../../shared/lib/api';
-import type { UserPublicRead, UserAchievementList, MyEventsRead } from './types';
+import type { UserPublicRead, UserAchievementList, MyEventsRead, UserUpdate } from './types';
 
 const API_BASE = '/me';
+
 
 export const userApi = {
   getMyProfile: async (): Promise<UserPublicRead> => {
@@ -40,5 +41,10 @@ export const userApi = {
       params: { skip, limit },
     });
     return data;
+  },
+
+  updateProfile: async (data: UserUpdate) => {
+    const { data: response } = await api.patch(`${API_BASE}/update`, data);
+    return response;
   },
 };

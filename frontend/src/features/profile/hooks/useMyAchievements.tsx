@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { userApi } from '../../../entities/users/api';
-import type { UserAchievementList } from '../../../entities/users/types';
+import { userApi } from '../../../entities/profile/api';
+import type { UserAchievementList } from '../../../entities/profile/types';
 
 type UseMyAchievementsResult = {
   data: UserAchievementList | null;

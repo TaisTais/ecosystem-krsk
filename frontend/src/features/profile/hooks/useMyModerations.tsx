@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { userApi } from '../../../entities/users/api';
+import { userApi } from '../../../entities/profile/api';
+import type { ModerationRecordRead } from '@/entities/profile/types';
 
-type ModerationRecord = Record<string, unknown>; // или замени на настоящий тип позже
 
 type UseMyModerationsResult = {
-  data: ModerationRecord[] | null;
+  data: ModerationRecordRead[] | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
 };
 
 export const useMyModerations = (): UseMyModerationsResult => {
-  const [data, setData] = useState<ModerationRecord[] | null>(null);
+  const [data, setData] = useState<ModerationRecordRead[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
